@@ -1,0 +1,97 @@
+
+
+import requests
+from requests.auth import HTTPBasicAuth
+
+SOURCE_API = "https://etemadyadak.com/wp-json/wc/store/v1/products"
+
+DEST_API = "https://saberipart.ir/wp-json/wc/v3/products"
+
+CONSUMER_KEY = "ck_3ab5888e21010df8989853bac546b1c1e7a446c1"
+CONSUMER_SECRET = "cs_afcc4d84bb5117a622d599d0732b4f188c4e3eec
+"
+
+
+auth = HTTPBasicAuth(CONSUMER_KEY, CONSUMER_SECRET)
+
+
+def get_products():
+    page = 1
+
+    while True:
+        r = requests.get(
+            SOURCE_API,
+            params={
+                "page": page,
+                "per_page": 100
+            },
+            timeout=60
+        )
+
+        r.raise_for_status()
+
+        products = r.json()
+
+        if not products:
+            break
+
+        yield from products
+
+        page += 1
+
+
+def create_product(product):
+
+    images = []
+
+    for img in product.get("images", []):
+        if img.get("src"):
+            images.append({
+                "src": img["src"]
+            })
+
+    regular_price = product.get("prices", {}).get("price")
+
+    if regular_price:
+        regular_price = str(float(regular_price) / 100)
+
+    data = {
+        "name": product.get("name"),
+        "type": "simple",
+        "description": product.get("description", ""),
+        "short_description": product.get("short_description", ""),
+        "sku": product.get("sku", ""),
+        "regular_price": regular_price or "",
+        "manage_stock": False,
+        "images": images
+    }
+
+    r = requests.post(
+        DEST_API,
+        auth=auth,
+        json=data,
+        timeout=60
+    )
+
+    if r.status_code in (200, 201):
+        print("✔", product["name"])
+    else:
+        print("✖", product["name"])
+        print(r.status_code)
+        print(r.text)
+
+
+def main():
+
+    for product in get_products():
+
+        try:
+            create_product(product)
+
+        except Exception as e:
+            print("ERROR:", product.get("name"))
+            print(e)
+
+
+if name == "__main__":
+    main()
